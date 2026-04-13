@@ -1,0 +1,174 @@
+//@version=5
+indicator("MEGA OI + CVD + LIQUIDATION SYSTEM", overlay=false, max_bars_back=500)
+
+// ============================================================
+// USTAWIENIA
+// ============================================================
+grp1 = "=== CVD ==="
+cvd_length     = input.int(21,   "CVD Smoothing",          group=grp1)
+cvd_fast       = input.int(5,    "CVD Fast EMA",           group=grp1)
+cvd_confirm    = input.int(3,    "Świece potwierdzenia",   group=grp1)
+
+grp2 = "=== TREND ==="
+ema_fast       = input.int(20,   "EMA Fast",               group=grp2)
+ema_slow       = input.int(50,   "EMA Slow",               group=grp2)
+ema_trend      = input.int(200,  "EMA Trend (200)",        group=grp2)
+
+grp3 = "=== WOLUMEN / OI ==="
+vol_mult       = input.float(1.5,"Wolumen próg (x avg)",   group=grp3)
+oi_length      = input.int(20,   "OI Smoothing",           group=grp3)
+
+grp4 = "=== RSI ==="
+rsi_len        = input.int(14,   "RSI Period",             group=grp4)
+rsi_long_min   = input.int(45,   "RSI Long min",           group=grp4)
+rsi_long_max   = input.int(72,   "RSI Long max",           group=grp4)
+rsi_short_min  = input.int(28,   "RSI Short min",          group=grp4)
+rsi_short_max  = input.int(55,   "RSI Short max",          group=grp4)
+
+// ============================================================
+// CVD — Cumulative Volume Delta
+// ============================================================
+raw_delta   = (close - open) / (high - low + 0.0001) * volume
+cvd         = ta.cum(raw_delta)
+cvd_slow_e  = ta.ema(cvd, cvd_length)
+cvd_fast_e  = ta.ema(cvd, cvd_fast)
+
+// CVD momentum: fast EMA nad slow EMA
+cvd_bull    = cvd_fast_e > cvd_slow_e and cvd_fast_e > cvd_fast_e[cvd_confirm]
+cvd_bear    = cvd_fast_e < cvd_slow_e and cvd_fast_e < cvd_fast_e[cvd_confirm]
+
+// CVD acceleration (czy rośnie coraz szybciej?)
+cvd_accel   = cvd_fast_e - cvd_fast_e[3]
+cvd_strong_bull = cvd_accel > 0 and cvd_bull
+cvd_strong_bear = cvd_accel < 0 and cvd_bear
+
+// ============================================================
+// TREND — potrójne EMA
+// ============================================================
+e20  = ta.ema(close, ema_fast)
+e50  = ta.ema(close, ema_slow)
+e200 = ta.ema(close, ema_trend)
+
+trend_up   = e20 > e50 and close > e200
+trend_down = e20 < e50 and close < e200
+price_ok_long  = close > e20
+price_ok_short = close < e20
+
+// ============================================================
+// WOLUMEN — proxy dla OI
+// ============================================================
+vol_avg    = ta.sma(volume, 20)
+vol_strong = volume > vol_avg * vol_mult
+
+// OI proxy: skumulowany wolumen vs jego EMA
+oi_proxy   = ta.ema(volume, oi_length)
+oi_rising  = oi_proxy > oi_proxy[3]
+oi_falling = oi_proxy < oi_proxy[3]
+
+// ============================================================
+// RSI
+// ============================================================
+rsi = ta.rsi(close, rsi_len)
+rsi_ok_long  = rsi >= rsi_long_min  and rsi <= rsi_long_max
+rsi_ok_short = rsi >= rsi_short_min and rsi <= rsi_short_max
+
+// ============================================================
+// LIQUIDATION PROXY
+// ============================================================
+// Gdy cena spada gwałtownie + duży wolumen = likwidacja Longów
+// Gdy cena rośnie gwałtownie + duży wolumen = likwidacja Shortów
+candle_size  = math.abs(close - open)
+avg_candle   = ta.sma(candle_size, 20)
+big_candle   = candle_size > avg_candle * 2.0
+
+liq_longs  = big_candle and close < open and vol_strong  // długie czerwone świece = liq longów
+liq_shorts = big_candle and close > open and vol_strong  // długie zielone świece = liq shortów
+
+// ============================================================
+// SYGNAŁY GŁÓWNE
+// ============================================================
+// LONG: CVD rośnie agresywnie + trend wzrostowy + wolumen + RSI ok + OI rośnie
+long_strong = cvd_strong_bull and trend_up   and price_ok_long  and vol_strong and rsi_ok_long  and oi_rising
+long_weak   = cvd_bull         and price_ok_long  and vol_strong and rsi_ok_long
+
+// SHORT: CVD spada agresywnie + trend spadkowy + wolumen + RSI ok + OI rośnie
+short_strong = cvd_strong_bear and trend_down  and price_ok_short and vol_strong and rsi_ok_short and oi_rising
+short_weak   = cvd_bear         and price_ok_short and vol_strong and rsi_ok_short
+
+// Sygnały po likwidacji (short squeeze / long squeeze)
+long_after_liq  = liq_longs[1]  and cvd_bull and close > close[1]   // po liq longów cena odreagowuje
+short_after_liq = liq_shorts[1] and cvd_bear and close < close[1]
+
+// ============================================================
+// WYŚWIETLANIE — CVD
+// ============================================================
+plot(cvd_slow_e, "CVD Slow", color=color.new(color.gray,  40), linewidth=1)
+plot(cvd_fast_e, "CVD Fast", color=cvd_bull ? color.new(color.green,0) : color.new(color.red,0), linewidth=2)
+hline(0, "Zero", color=color.gray, linestyle=hline.style_dashed)
+
+// CVD Acceleration bars
+plot(cvd_accel, "CVD Accel", color=cvd_accel > 0 ? color.new(color.teal,60) : color.new(color.orange,60), style=plot.style_columns)
+
+// ============================================================
+// SYGNAŁY na wykresie
+// ============================================================
+plotshape(long_strong,    "LONG STRONG",    shape.labelup,   location.bottom, color=color.green,               text="L",  textcolor=color.white, size=size.normal)
+plotshape(long_weak,      "LONG",           shape.triangleup, location.bottom, color=color.new(color.green,40), text="l",  textcolor=color.white, size=size.small)
+plotshape(short_strong,   "SHORT STRONG",   shape.labeldown, location.top,    color=color.red,                 text="S",  textcolor=color.white, size=size.normal)
+plotshape(short_weak,     "SHORT",          shape.triangledown, location.top,  color=color.new(color.red,40),   text="s",  textcolor=color.white, size=size.small)
+
+plotshape(liq_longs,      "LIQ LONGS",      shape.xcross,    location.top,    color=color.orange, size=size.tiny)
+plotshape(liq_shorts,     "LIQ SHORTS",     shape.xcross,    location.bottom, color=color.purple, size=size.tiny)
+
+// ============================================================
+// TŁO
+// ============================================================
+bgcolor(long_strong  ? color.new(color.green,  85) : na)
+bgcolor(short_strong ? color.new(color.red,    85) : na)
+bgcolor(liq_longs    ? color.new(color.orange, 92) : na)
+bgcolor(liq_shorts   ? color.new(color.purple, 92) : na)
+
+// ============================================================
+// PANEL STATUSU
+// ============================================================
+var table t = table.new(position.top_right, 2, 8, bgcolor=color.new(color.black,65), border_width=1, border_color=color.new(color.gray,50))
+
+if barstate.islast
+    // CVD
+    table.cell(t, 0, 0, "CVD",         text_color=color.white,  text_size=size.small)
+    table.cell(t, 1, 0, cvd_bull ? "▲ KUPNO" : "▼ SPRZEDAŻ", text_color=cvd_bull ? color.green : color.red, text_size=size.small)
+
+    // CVD Siła
+    table.cell(t, 0, 1, "CVD Siła",    text_color=color.white,  text_size=size.small)
+    table.cell(t, 1, 1, cvd_strong_bull ? "⚡ SILNE" : cvd_strong_bear ? "⚡ SILNE" : "~ słabe", text_color=cvd_strong_bull or cvd_strong_bear ? color.yellow : color.gray, text_size=size.small)
+
+    // OI Proxy
+    table.cell(t, 0, 2, "OI (proxy)",  text_color=color.white,  text_size=size.small)
+    table.cell(t, 1, 2, oi_rising ? "▲ ROŚNIE" : "▼ SPADA", text_color=oi_rising ? color.green : color.red, text_size=size.small)
+
+    // Trend
+    table.cell(t, 0, 3, "Trend",       text_color=color.white,  text_size=size.small)
+    table.cell(t, 1, 3, trend_up ? "▲ WZROST" : trend_down ? "▼ SPADEK" : "→ BOCZNY", text_color=trend_up ? color.green : trend_down ? color.red : color.gray, text_size=size.small)
+
+    // Wolumen
+    table.cell(t, 0, 4, "Wolumen",     text_color=color.white,  text_size=size.small)
+    table.cell(t, 1, 4, vol_strong ? "⚡ SILNY" : "→ SŁABY", text_color=vol_strong ? color.green : color.gray, text_size=size.small)
+
+    // RSI
+    table.cell(t, 0, 5, "RSI",         text_color=color.white,  text_size=size.small)
+    table.cell(t, 1, 5, str.tostring(math.round(rsi, 1)), text_color=rsi > 70 ? color.red : rsi < 30 ? color.green : color.white, text_size=size.small)
+
+    // Likwidacje
+    table.cell(t, 0, 6, "Likwidacje",  text_color=color.white,  text_size=size.small)
+    table.cell(t, 1, 6, liq_longs ? "💥 LONGI" : liq_shorts ? "💥 SHORTY" : "brak", text_color=liq_longs ? color.orange : liq_shorts ? color.purple : color.gray, text_size=size.small)
+
+    // SYGNAŁ
+    table.cell(t, 0, 7, "SYGNAŁ",      text_color=color.white,  text_size=size.small)
+    table.cell(t, 1, 7, 
+      long_strong  ? "🟢 LONG STRONG" : 
+      short_strong ? "🔴 SHORT STRONG" : 
+      long_weak    ? "🟡 long" : 
+      short_weak   ? "🟠 short" : 
+      "⚪ CZEKAJ", 
+      text_color=long_strong ? color.green : short_strong ? color.red : long_weak ? color.yellow : short_weak ? color.orange : color.gray,
+      text_size=size.small)

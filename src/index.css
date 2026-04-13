@@ -1,0 +1,132 @@
+@import "tailwindcss";
+
+/* ── Reset ──────────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+}
+
+/* ── Design tokens ───────────────────────────────────────────────────────────── */
+:root {
+  --bg-base:        #0a0f1e;
+  --bg-card:        #0d1526;
+  --bg-header:      #070c1a;
+  --bg-hover:       #111e35;
+  --border-cyan:    rgba(0,212,255,0.15);
+  --border-input:   rgba(0,212,255,0.20);
+  --border-hover:   rgba(0,212,255,0.30);
+  --accent-1:       #00d4ff;
+  --accent-2:       #0ea5e9;
+  --text-primary:   #ffffff;
+  --text-secondary: #8892a4;
+  --text-muted:     #4a5878;
+  --text-dim:       #2e3d55;
+  --green:          #00d68f;
+  --red:            #ff3355;
+  --yellow:         #f5c518;
+}
+
+/* ── Base ────────────────────────────────────────────────────────────────────── */
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: -apple-system, 'Inter', 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-base);
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar        { width: 4px; height: 4px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: rgba(0,212,255,0.2); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,212,255,0.38); }
+
+/* ── Buttons — globally centered ─────────────────────────────────────────────── */
+button {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent-1);
+  outline-offset: 2px;
+}
+
+/* ── Inputs — global style ───────────────────────────────────────────────────── */
+input:not([type='checkbox']):not([type='radio']):not([type='range']),
+textarea,
+select {
+  background-color: var(--bg-card) !important;
+  border: 1px solid var(--border-input) !important;
+  color: var(--text-primary) !important;
+  border-radius: 8px;
+  padding: 12px 16px;
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.875rem;
+  transition: border-color 0.15s;
+}
+
+input:not([type='checkbox']):not([type='radio']):not([type='range']):focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent-1) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 1px rgba(0,212,255,0.15);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-dim);
+  opacity: 1;
+}
+
+/* ── Section card — reusable utility ─────────────────────────────────────────── */
+.section-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-cyan);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+/* ── Page section spacing ────────────────────────────────────────────────────── */
+.page-section {
+  margin-bottom: 20px;
+}
+
+/* ── Label ───────────────────────────────────────────────────────────────────── */
+.field-label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+/* ── Prevent autofill chrome icons ──────────────────────────────────────────── */
+input[type='password']::-webkit-credentials-auto-fill-button,
+input[type='password']::-webkit-contacts-auto-fill-button {
+  visibility: hidden;
+}
